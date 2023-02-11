@@ -12,7 +12,7 @@ from diffusers import (
     UNet2DConditionModel,
 )
 from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
-from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer, CLIPVisionModel
+from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
 
 
 class StableDiffusionAnimationPipeline(DiffusionPipeline):
@@ -178,48 +178,9 @@ class StableDiffusionAnimationPipeline(DiffusionPipeline):
             # For classifier free guidance, we need to do two forward passes.
             # Here we concatenate the unconditional and text embeddings into a single batch
             # to avoid doing two forward passes
-            print('uncond', uncond_embeddings.shape)
-            print('text', text_embeddings.shape)
             text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
         return text_embeddings
-
-    def embed_image(
-        self,
-        image: torch.FloatTensor,
-        do_classifier_free_guidance: bool,
-        batch_size: int,
-        vision_model: str
-    ) -> torch.FloatTensor:
-        # Build vision model
-        if not hasattr(self, 'image_encoder'):
-            self.image_encoder = CLIPVisionModel.from_pretrained(
-                vision_model,
-                torch_dtype=torch.float16
-            ).to(self.device)
-        image = (image / 2 + 0.5).clamp(0, 1)
-        image = image.cpu().permute(0, 2, 3, 1).numpy()
-        image = self.feature_extractor(
-            self.numpy_to_pil(image), return_tensors="pt"
-        ).to(self.device)
-        image_embeddings = self.image_encoder(**image.data)[0]
-
-        if do_classifier_free_guidance:
-            uncond_input = self.tokenizer(
-                [""] * batch_size,
-                padding="max_length",
-                max_length=image_embeddings.shape[1],
-                return_tensors="pt",
-            )
-            uncond_embeddings = self.text_encoder(
-                uncond_input.input_ids.to(self.device)
-            )[0]
-
-            print('uncond', uncond_embeddings.shape)
-            print('image', image_embeddings.shape)
-            embeddings = torch.cat([uncond_embeddings, image_embeddings])
-
-        return embeddings
 
     def latents_to_image(self, latents):
         latents = 1 / 0.18215 * latents
