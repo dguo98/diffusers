@@ -109,11 +109,7 @@ class Predictor:
             batch_size = 1
 
             # Generate initial latents to start to generate animation frames from
-            initial_scheduler = self.pipe.scheduler = make_scheduler(
-                num_inference_steps
-            )
 
-            num_initial_steps = int(num_inference_steps * (1 - prompt_strength))
             do_classifier_free_guidance = guidance_scale > 1.0
 
             prompts = [prompt_start] + [
@@ -134,13 +130,14 @@ class Predictor:
                     )
                 )
 
-            
-            pil_init_image = Image.open(init_image).resize((width, height))
+            pil_init_image = Image.open(init_image).convert("RGB").resize((width, height))
 
-            _, _, init_latents, init_final_latents = self.pipe(prompts[0], pil_init_image, 
+            final_image, _, init_latents, init_final_latents = self.pipe(prompts[0], pil_init_image, 
                 prompt_strength, num_inference_steps, guidance_scale, 
                 generator=generator, get_latents=True)
 
+            final_image[0].save(f"tmp/init_final_image.jpg")  # HACK(demi): save final init image, should be img2img
+ 
             if init_image is None:
                 print("no init image")
                 # TODO(demi): initialize with random, get init_latents and init_final_latents
