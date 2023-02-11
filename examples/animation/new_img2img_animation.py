@@ -124,6 +124,7 @@ class Predictor:
 
             keyframe_text_embeddings = []
             for prompt in prompts:
+                print("prompt=", prompt)
                 keyframe_text_embeddings.append(
                     self.pipe._encode_prompt(
                         prompt, device, num_images_per_prompt, do_classifier_free_guidance, negative_prompt
@@ -135,6 +136,8 @@ class Predictor:
             final_image, _, init_latents, init_final_latents = self.pipe(prompts[0], pil_init_image, 
                 prompt_strength, num_inference_steps, guidance_scale, 
                 generator=generator, get_latents=True)
+
+            print("init_latents.shape=", init_latents.shape)
 
             final_image[0].save(f"tmp/init_final_image.jpg")  # HACK(demi): save final init image, should be img2img
  
@@ -162,14 +165,18 @@ class Predictor:
                         keyframe_text_embeddings[keyframe],
                         keyframe_text_embeddings[keyframe + 1],
                     )
-
-                    _, _, final_latents = self.pipe(prompts[keyframe],  # NB(demi): placeholder, will be overwritten
-                        pil_init_image,
-                        prompt_strength,
-                        num_inference_steps,
-                        guidance_scale,
+                    
+                    print("new prompt=",prompts[keyframe])
+                    _, _, final_latents = self.pipe(
+                        prompt=prompts[keyframe],  # HACK(demi)
+                        init_image=pil_init_image,
+                        strength=prompt_strength,
+                        num_inference_steps=num_inference_steps,
+                        guidance_scale=guidance_scale,
                         generator=generator,
-                        reuse_latents=init_latents)
+                        #prompt_embeds=text_embeddings,
+                        #reuse_latents=init_latents HACK(demi)
+                        )
 
                     # de-noise this frame
                     frames_latents.append(latents)
