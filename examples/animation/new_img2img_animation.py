@@ -167,16 +167,16 @@ class Predictor:
                     )
                     
                     print("new prompt=",prompts[keyframe])
-                    _, _, final_latents = self.pipe(
-                        prompt=prompts[keyframe],  # HACK(demi)
+                    _, _, latents = self.pipe(
+                        #prompt=prompts[keyframe],  # HACK(demi)
                         init_image=pil_init_image,
                         strength=prompt_strength,
                         num_inference_steps=num_inference_steps,
                         guidance_scale=guidance_scale,
                         generator=generator,
-                        #prompt_embeds=text_embeddings,
-                        #reuse_latents=init_latents HACK(demi)
-                        )
+                        prompt_embeds=text_embeddings,
+                        reuse_latents=init_latents # HACK(demi)
+                    )
 
                     # de-noise this frame
                     frames_latents.append(latents)
