@@ -439,6 +439,7 @@ class DiffusionPipeline(ConfigMixin):
         ```
         """
         cache_dir = kwargs.pop("cache_dir", DIFFUSERS_CACHE)
+        print("cache_dir=", cache_dir)
         resume_download = kwargs.pop("resume_download", False)
         force_download = kwargs.pop("force_download", False)
         proxies = kwargs.pop("proxies", None)
