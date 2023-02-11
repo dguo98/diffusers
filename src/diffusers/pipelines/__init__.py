@@ -54,6 +54,7 @@ else:
         StableDiffusionInstructPix2PixPipeline,
         StableDiffusionPipeline,
         StableDiffusionUpscalePipeline,
+        StableDiffusionImg2ImgTextAnimatePipeline,
     )
     from .stable_diffusion_safe import StableDiffusionPipelineSafe
     from .unclip import UnCLIPImageVariationPipeline, UnCLIPPipeline
