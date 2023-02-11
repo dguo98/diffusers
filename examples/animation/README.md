@@ -2,13 +2,17 @@
 
 ## Setup
 
-In this folder, clone `git@github.com:google-research/frame-interpolation.git`, and then install requirements listed in `frame-interpolation/requirements.txt`.
+1. Clone `git@github.com:google-research/frame-interpolation.git`, and then install requirements listed in `frame-interpolation/requirements.txt`.
 ```
+mkdir -p tmp
 git clone git@github.com:google-research/frame-interpolation.git
 pip install -r frame-interpolation/requirements.txt
 ```
+2. Download [`saved_model` folder](https://drive.google.com/drive/folders/1i9Go1YI2qiFWeT5QtywNFmYAA74bhXWj?usp=sharing) to this folder.
 
 ## Example
+
+Before running, `mkdir -p tmp`.
 
 ```
 python -u img2img_animation.py \
