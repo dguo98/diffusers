@@ -4,7 +4,6 @@
 
 1. Clone `git@github.com:google-research/frame-interpolation.git`, and then install requirements listed in `frame-interpolation/requirements.txt`.
 ```
-mkdir -p tmp
 git clone git@github.com:google-research/frame-interpolation.git
 pip install -r frame-interpolation/requirements.txt
 ```
