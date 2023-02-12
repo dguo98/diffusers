@@ -271,6 +271,10 @@ class Predictor:
             self.pipe.latents_to_image(lat)[0].astype("float32")
             for lat in frames_latents
         ]
+
+        print("get all images")
+        del frames_latents
+
         if num_interpolation_steps == 0:
             return images
 
