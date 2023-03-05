@@ -29,7 +29,6 @@ parser.add_argument(
     help="Prompt to end the animation with. You can include multiple prompts by separating the prompts with | (the 'pipe' character)")
 parser.add_argument('--width', type=int, default=512, help="Width of output image")
 parser.add_argument('--height', type=int, default=512, help="Height of output image")
-parser.add_argument('--reuse_latents', type=int, default=1, help="Whether to share same latents")
 parser.add_argument('--num_inference_steps', type=int, default=50, help="Number of denoising steps (1~500)")
 parser.add_argument(
     '--prompt_strength', type=float, default=0.8,
@@ -98,92 +97,124 @@ class Predictor:
         film_interpolation: bool,
         intermediate_output: bool,
         seed: int,
-        output_format: str,
-        reuse_latents: int
+        output_format: str
     ) -> str:
         """Run a single prediction on the model"""
         with torch.autocast("cuda"), torch.inference_mode():
             if seed is None:
                 seed = int.from_bytes(os.urandom(2), "big")
             print(f"Using seed: {seed}")
-            if seed == -1:
-                generator=None
-            else:
-                generator = torch.Generator("cuda").manual_seed(seed)
+            generator = torch.Generator("cuda").manual_seed(seed)
 
             batch_size = 1
 
             # Generate initial latents to start to generate animation frames from
+            # NB(demi): use pipe.scheduler
+            """
+            initial_scheduler = self.pipe.scheduler = make_scheduler(
+                num_inference_steps
+            )
+            """
 
+            #num_initial_steps = int(num_inference_steps * (1 - prompt_strength))
             do_classifier_free_guidance = guidance_scale > 1.0
 
             prompts = [prompt_start] + [
                 p.strip() for p in prompt_end.strip().split("|")
             ]
 
-
-            # NB(demi): dummy hyper-params
+            # NB(demi): dummy settings
             device="cuda"
             num_images_per_prompt=1
             negative_prompt=None
+            batch_size=1
 
             keyframe_text_embeddings = []
             for prompt in prompts:
-                print("prompt=", prompt)
+
                 keyframe_text_embeddings.append(
                     self.pipe._encode_prompt(
-                        prompt, device, num_images_per_prompt, do_classifier_free_guidance, negative_prompt
-                    )
+                        prompt, device, num_images_per_prompt, do_classifier_free_guidance, negative_prompt)
                 )
 
-            pil_init_image = Image.open(init_image).convert("RGB").resize((width, height))
+            if init_image is not None:
+                print(f"Obtaining initial latents from {init_image}")
+                init_image = load_img(init_image, (width, height)).to("cuda")  # NB(demi): preprocessed
 
-            final_image, _, init_latents, init_final_latents = self.pipe(prompts[0], pil_init_image, 
-                prompt_strength, num_inference_steps, guidance_scale, 
-                generator=generator, get_latents=True)
+                pipe.scheduler.set_timesteps(num_inference_steps,device=device)
+                timestamps, num_inference_steps=pipe.get_timestamps(num_inference_steps, prompt_strength, device)
+                latent_timestep=timestamps[:1].repeat(batch_size*num_images_per_prompt)
 
-            print("init_latents.shape=", init_latents.shape)
+                latent_mid = pipe.prepare_latents(init_image, latent_timestep,
+                    batch_size, num_images_per_prompt, keyframe_text_embeddings[-1].dtype, device, generator)
+            else:
+                assert False, "must set init_image"
 
-            final_image[0].save(f"tmp/init_final_image.jpg")  # HACK(demi): save final init image, should be img2img
- 
-            if init_image is None:
-                print("no init image")
-                # TODO(demi): initialize with random, get init_latents and init_final_latents
-                raise NotImplementedError
+
+            num_warmup_steps = len(timesteps) - num_inference_steps * pipe.scheduler.order
 
             # Generate animation frames
-            frames_latents = [init_final_latents]
+            frames_latents = []
+            # From initial image to starting prompt
+            
 
-            if intermediate_output:
-                for i, latents in enumerate(frames_latents):
-                    image = self.pipe.latents_to_image(latents)
-                    save_pil_image(
-                        self.pipe.numpy_to_pil(image)[0],
-                        path=f"tmp/output-init-{i}.png",
-                    )
 
-            if reuse_latents == 0:
-                init_latents = None
-
-            for keyframe in range(len(prompts) - 1):
+            if init_image is not None:
+                frames_latents = [latents_orig]
+                '''
+                latents_start = keyframe_latents[0]
                 for i in range(num_animation_frames):
+                    print(f"Generating frame {i + 1} of initial image")
+                    x = (i + 1) / num_animation_frames
+                    latents = latents_start * x + latents_orig * (1 - x)
+                    frames_latents.append(latents)
+                '''
+                if intermediate_output:
+                    for i, latents in enumerate(frames_latents):
+                        image = self.pipe.latents_to_image(latents)
+                        save_pil_image(
+                            self.pipe.numpy_to_pil(image)[0],
+                            path=f"tmp/output-init-{i}.png",
+                        )
+
+            for keyframe in range(-1, len(prompts) - 1):
+                for ii in range(num_animation_frames):
                     print(f"Generating frame {i + 1} of keyframe {keyframe}")
-                    text_embeddings = slerp(
-                        (i + 1) / num_animation_frames,
-                        keyframe_text_embeddings[keyframe],
-                        keyframe_text_embeddings[keyframe + 1],
-                    )
+                    if keyframe == -1:
+                        text_embeddings = keyframe_text_embeddings[0]
+                    else:
+                        text_embeddings = slerp(
+                            (ii + 1) / num_animation_frames,
+                            keyframe_text_embeddings[keyframe],
+                            keyframe_text_embeddings[keyframe + 1],
+                        )
                     
-                    print("new prompt=",prompts[keyframe])
-                    _, _, latents = self.pipe(
-                        #prompt=prompts[keyframe],  # HACK(demi)
-                        init_image=pil_init_image,
-                        strength=prompt_strength,
-                        num_inference_steps=num_inference_steps,
+                    for i, t in enumerate(timesteps):
+                        latent_model_input = torch.cat([latents]*2) if do_classifier_free_guidance else latents
+                        latent_model_input = pipe.scheduler.scale_model_input(latent_model_input, t)
+                        # predict the noise residual
+                        noise_pred = pipe.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
+
+                        # perform guidance
+                        if do_classifier_free_guidance:
+                            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+
+                        # compute the previous noisy sample x_t -> x_t-1
+                        latents = pipe.scheduler.step(noise_pred, t, latents, **extra_step_kwargs).prev_sample
+
+
+
+                    # re-initialize scheduler
+                    self.pipe.scheduler = make_scheduler(
+                        num_inference_steps, initial_scheduler
+                    )
+                    latents = self.pipe.denoise(
+                        latents=latents_mid,
+                        text_embeddings=text_embeddings,
+                        t_start=num_initial_steps,
+                        t_end=None,
                         guidance_scale=guidance_scale,
-                        generator=generator,
-                        prompt_embeds=text_embeddings,
-                        reuse_latents=init_latents # HACK(demi)
                     )
 
                     # de-noise this frame
@@ -192,7 +223,7 @@ class Predictor:
                         image = self.pipe.latents_to_image(latents)
                         save_pil_image(
                             self.pipe.numpy_to_pil(image)[0],
-                            path=f"tmp/output-{keyframe}-{i + 1}.png",
+                            path=f"tmp/output-{keyframe}-{ii + 1}.png",
                         )
 
             if gif_ping_pong:
@@ -279,10 +310,6 @@ class Predictor:
             self.pipe.latents_to_image(lat)[0].astype("float32")
             for lat in frames_latents
         ]
-
-        print("get all images")
-        del frames_latents
-
         if num_interpolation_steps == 0:
             return images
 

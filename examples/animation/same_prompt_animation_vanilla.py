@@ -1,3 +1,4 @@
+""" Vanilla version of sampe prompt image variation interpolation : FILM interpolation between img2img outputs"""
 import argparse
 import sys
 import os
@@ -24,17 +25,14 @@ parser.add_argument('--model', type=str, default='runwayml/stable-diffusion-v1-5
 # Start with either an image or a prompt
 parser.add_argument('--init_image', type=str, default=None, help="Image path to start the animation with")
 parser.add_argument('--prompt_start', type=str, default=None, help="Prompt to start the animation with")
-parser.add_argument(
-    '--prompt_end', type=str, default=None,
-    help="Prompt to end the animation with. You can include multiple prompts by separating the prompts with | (the 'pipe' character)")
+parser.add_argument('--n_image', type=int, default=20, help="number of images")
 parser.add_argument('--width', type=int, default=512, help="Width of output image")
 parser.add_argument('--height', type=int, default=512, help="Height of output image")
-parser.add_argument('--reuse_latents', type=int, default=1, help="Whether to share same latents")
 parser.add_argument('--num_inference_steps', type=int, default=50, help="Number of denoising steps (1~500)")
 parser.add_argument(
     '--prompt_strength', type=float, default=0.8,
     help="Lower prompt strength generates more coherent gifs, higher respects prompts more but can be jumpy")
-parser.add_argument('--num_animation_frames', type=int, default=10, help="Number of frames to animate (2~50)")
+parser.add_argument('--num_animation_frames', type=int, default=1, help="Number of frames to animate (2~50)")
 parser.add_argument(
     '--num_interpolation_steps', type=int, default=5,
     help="Number of steps to interpolate between animation frames (1~50)")
@@ -85,7 +83,6 @@ class Predictor:
         self,
         init_image: str,
         prompt_start: str,
-        prompt_end: str,
         width: int,
         height: int,
         num_inference_steps: int,
@@ -99,8 +96,10 @@ class Predictor:
         intermediate_output: bool,
         seed: int,
         output_format: str,
-        reuse_latents: int
+        n_image: int
     ) -> str:
+        assert num_animation_frames == 1, "same prompt vanilla animation ony supports num_animation_frame=1"
+
         """Run a single prediction on the model"""
         with torch.autocast("cuda"), torch.inference_mode():
             if seed is None:
@@ -116,10 +115,9 @@ class Predictor:
             # Generate initial latents to start to generate animation frames from
 
             do_classifier_free_guidance = guidance_scale > 1.0
-
-            prompts = [prompt_start] + [
-                p.strip() for p in prompt_end.strip().split("|")
-            ]
+            
+            
+            prompts = [prompt_start] * n_image
 
 
             # NB(demi): dummy hyper-params
@@ -142,7 +140,7 @@ class Predictor:
                 prompt_strength, num_inference_steps, guidance_scale, 
                 generator=generator, get_latents=True)
 
-            print("init_latents.shape=", init_latents.shape)
+            #print("init_latents.shape=", init_latents.shape)
 
             final_image[0].save(f"tmp/init_final_image.jpg")  # HACK(demi): save final init image, should be img2img
  
@@ -162,8 +160,7 @@ class Predictor:
                         path=f"tmp/output-init-{i}.png",
                     )
 
-            if reuse_latents == 0:
-                init_latents = None
+            init_latents = None  # NB(demi): don't reuse latents
 
             for keyframe in range(len(prompts) - 1):
                 for i in range(num_animation_frames):

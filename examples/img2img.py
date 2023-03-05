@@ -4,11 +4,12 @@ from PIL import Image
 from io import BytesIO
 
 from diffusers import StableDiffusionImg2ImgPipeline
+from diffusers import StableDiffusionImg2ImgTextAnimatePipeline
 
 device="cuda"
 model = input("input model path:") or "runwayml/stable-diffusion-v1-5"
 MODEL_CACHE="animation/diffusers-cache"
-pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+pipe = StableDiffusionImg2ImgTextAnimatePipeline.from_pretrained(
     model,
     torch_dtype=torch.float16,
     cache_dir=MODEL_CACHE,
@@ -42,8 +43,8 @@ while True:
     strength = float(input("strength (default 0.75):") or 0.2)
     gs = float(input("guidance scale (default 7.5):") or 7)
 
-    images = pipe(prompt=prompt, init_image=init_image, strength=strength, guidance_scale=gs, num_images_per_prompt=1, generator=generator,
-        num_inference_steps=50).images
+    images, _, _ = pipe(prompt=prompt, init_image=init_image, strength=strength, guidance_scale=gs, num_images_per_prompt=1, generator=generator,
+        num_inference_steps=50)
     for i in range(1):
         ids+=1
         images[i].save(f"{output_path}/img2img_{ids}.png") 

@@ -179,6 +179,7 @@ class Img2ImgAnimation:
                         # call the callback, if provided
                         if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.pipe.scheduler.order == 0):
                             progress_bar.update()
+                print("latents.shape=", latents.shape)
                 frames_latents.append(latents)
 
                 # optionally save frames in separate files

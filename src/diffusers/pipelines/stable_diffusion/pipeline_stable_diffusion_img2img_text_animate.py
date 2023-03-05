@@ -428,7 +428,7 @@ class StableDiffusionImg2ImgTextAnimatePipeline(DiffusionPipeline):
     def check_inputs(
         self, prompt, strength, callback_steps, negative_prompt=None, prompt_embeds=None, negative_prompt_embeds=None
     ):
-        if not isinstance(prompt, str) and not isinstance(prompt, list):
+        if not isinstance(prompt, str) and not isinstance(prompt, list) and (not prompt is None):
             raise ValueError(f"`prompt` has to be of type `str` or `list` but is {type(prompt)}")
 
         if strength < 0 or strength > 1:
@@ -634,7 +634,7 @@ class StableDiffusionImg2ImgTextAnimatePipeline(DiffusionPipeline):
         self.check_inputs(prompt, strength, callback_steps, negative_prompt, prompt_embeds, negative_prompt_embeds)
 
         # 2. Define call parameters
-        batch_size = 1 if isinstance(prompt, str) else len(prompt)
+        batch_size = 1 if isinstance(prompt, str) or prompt is None else len(prompt)
         device = self._execution_device
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
@@ -654,6 +654,8 @@ class StableDiffusionImg2ImgTextAnimatePipeline(DiffusionPipeline):
                 prompt_embeds=prompt_embeds,
                 negative_prompt_embeds=negative_prompt_embeds,
             )
+        else:
+            print("prompt embeds is not None")
 
         # 4. Preprocess image
         image = preprocess(image)
