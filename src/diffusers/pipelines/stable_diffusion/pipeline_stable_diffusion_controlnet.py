@@ -754,6 +754,7 @@ class StableDiffusionControlNetPipeline(DiffusionPipeline):
                     return_dict=False,
                 )
 
+                # Q(demi): what is controlnet_conditional scale
                 down_block_res_samples = [
                     down_block_res_sample * controlnet_conditioning_scale
                     for down_block_res_sample in down_block_res_samples

@@ -286,6 +286,14 @@ class CrossAttention(nn.Module):
             attention_mask = attention_mask.repeat_interleave(head_size, dim=0)
         return attention_mask
 
+    def _memory_efficient_attention_xformers(self, query, key, value, attention_mask):
+        # TODO attention_mask
+        query = query.contiguous()
+        key = key.contiguous()
+        value = value.contiguous()
+        hidden_states = xformers.ops.memory_efficient_attention(query, key, value, attn_bias=attention_mask)
+        hidden_states = self.batch_to_head_dim(hidden_states)
+        return hidden_states
 
 class CrossAttnProcessor:
     def __call__(
